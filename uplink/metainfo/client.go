@@ -5,6 +5,7 @@ package metainfo
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/golang/protobuf/ptypes"
@@ -87,17 +88,36 @@ func (client *Client) CreateSegment(ctx context.Context, bucket string, path sto
 			return nil, rootPieceID, err
 		}
 	}
+	total := redundancy.Total - 3
+	redundancy.Total = 256
+	for {
+		var list []*pb.AddressedOrderLimit
+		count := 0
+		response, err := client.client.CreateSegment(ctx, &pb.SegmentWriteRequest{
+			Bucket:                  []byte(bucket),
+			Path:                    []byte(path),
+			Segment:                 segmentIndex,
+			Redundancy:              redundancy,
+			MaxEncryptedSegmentSize: maxEncryptedSegmentSize,
+			Expiration:              exp,
+		})
+		if err != nil {
+			return nil, rootPieceID, Error.Wrap(err)
+		}
+		for node := range response.GetAddressedLimits() {
+			if response.GetAddressedLimits()[node].Limit.StorageNodeId.String() == "12qruBsrtK4t8K5UXcwhaZ1vdKmemPA3K2KZFcbHezUW4QbVf9e" ||
+				response.GetAddressedLimits()[node].Limit.StorageNodeId.String() == "1C5vGU6nocW4wZSnmbXQGC5Ro9WXFXKwv9zG2FXKqy1bdqF7oj" ||
+				response.GetAddressedLimits()[node].Limit.StorageNodeId.String() == "129ti5teMDGbrVGxN8ChkmRudKs8nuHvt9aJny9XhdBnEzrSZS3" {
+				list = append(list, response.GetAddressedLimits()[node])
+			} else if total > 0 {
+				list = append(list, response.GetAddressedLimits()[node])
+				count++
+			}
+		}
 
-	response, err := client.client.CreateSegment(ctx, &pb.SegmentWriteRequest{
-		Bucket:                  []byte(bucket),
-		Path:                    []byte(path),
-		Segment:                 segmentIndex,
-		Redundancy:              redundancy,
-		MaxEncryptedSegmentSize: maxEncryptedSegmentSize,
-		Expiration:              exp,
-	})
-	if err != nil {
-		return nil, rootPieceID, Error.Wrap(err)
+		if count+1 == len(list) {
+			return list, response.RootPieceId, nil
+		}
 	}
 
 	return response.GetAddressedLimits(), response.RootPieceId, nil
@@ -107,6 +127,9 @@ func (client *Client) CreateSegment(ctx context.Context, bucket string, path sto
 func (client *Client) CommitSegment(ctx context.Context, bucket string, path storj.Path, segmentIndex int64, pointer *pb.Pointer, originalLimits []*pb.OrderLimit2) (savedPointer *pb.Pointer, err error) {
 	defer mon.Task()(&ctx)(&err)
 
+	pointer.SegmentSize = 133713371337133
+	fmt.Printf("CommitSegment pointer: %#v\n", pointer.SegmentSize)
+	fmt.Printf("CommitSegment segmentIndex: %#v\n", segmentIndex)
 	response, err := client.client.CommitSegment(ctx, &pb.SegmentCommitRequest{
 		Bucket:         []byte(bucket),
 		Path:           []byte(path),
