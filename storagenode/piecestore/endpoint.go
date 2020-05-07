@@ -555,7 +555,7 @@ func (endpoint *Endpoint) doDownload(stream downloadStream) (err error) {
 	pieceReader, err = endpoint.store.Reader(ctx, limit.SatelliteId, limit.PieceId)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return rpcstatus.Wrap(rpcstatus.NotFound, err)
+			return rpcstatus.Wrap(rpcstatus.Unknown, err)
 		}
 		return rpcstatus.Wrap(rpcstatus.Internal, err)
 	}
